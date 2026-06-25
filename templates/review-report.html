@@ -1,0 +1,263 @@
+<!--
+  review-report.html — 整理知识库（organize）模式的看板报告模板。
+
+  用法：AI 填充下方带 {{...}} 的占位符后，写入 review-<week>.html 并 open 打开。
+  保留所有 <style>，只改 <body> 里的占位符。
+  样式已确认（浅色精致看板墙），勿改 CSS。
+
+  占位符清单（body 内）：
+    {{report-title}}        报告标题，如"本周捕获整理 · 2026-W26"
+    {{period}}              时段，如"6/20 – 6/24"
+    {{sources}}             来源，如"zcode、claude code · 3 会话"
+    {{total}}               草稿总数
+    {{promote-count}}       建议入库数（同时用于流向条 flex 值）
+    {{merge-count}}         建议合并数
+    {{discard-count}}       建议归档数
+    ...每个 room / card / merge / discard 项循环生成
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{report-title}}</title>
+<style>
+  :root{
+    --bg:#f6f5f2;
+    --surface:#ffffff;
+    --ink:#1a1a1f;
+    --ink-2:#3d4150;
+    --dim:#71778a;
+    --faint:#a8aebb;
+    --line:#ececea;
+    --line-2:#f1f0ed;
+    --dec-bg:#f3eeff; --dec-fg:#7c3aed; --dec-bd:#e7dcff;
+    --arc-bg:#eaf1ff; --arc-fg:#2563eb; --arc-bd:#d6e4ff;
+    --fix-bg:#e6f7ef; --fix-fg:#0d9268; --fix-bd:#cdeede;
+    --mth-bg:#e3f7f4; --mth-fg:#0e7490; --mth-bd:#c9eee9;
+    --mrg-bg:#fff4e0; --mrg-fg:#b45309; --mrg-bd:#ffe6c2;
+    --dis-bg:#fdeaea; --dis-fg:#dc2626; --dis-bd:#f9d2d2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:var(--bg)}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--ink); -webkit-font-smoothing:antialiased;
+    line-height:1.55;
+  }
+  .head{max-width:1040px;margin:0 auto;padding:46px 32px 0}
+  .head-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .head h1{font-size:27px;font-weight:700;letter-spacing:-0.4px}
+  .week{font-size:13px;font-weight:600;color:var(--dec-fg);
+    background:var(--dec-bg);border:1px solid var(--dec-bd);
+    padding:3px 11px;border-radius:999px}
+  .head .sub{font-size:13.5px;color:var(--dim);margin-top:8px}
+  .flow{max-width:1040px;margin:26px auto 0;padding:0 32px}
+  .flow-cap{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
+  .flow-cap .l{font-size:12px;color:var(--faint);font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+  .flow-cap .r{font-size:13px;color:var(--dim)}
+  .bar{display:flex;height:34px;border-radius:9px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(20,20,40,.05);background:var(--line-2)}
+  .seg{display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;
+    transition:flex .2s}
+  .seg.s-promote{background:linear-gradient(180deg,#10b981,#0d9268)}
+  .seg.s-merge{background:linear-gradient(180deg,#f59e0b,#d97706)}
+  .seg.s-discard{background:linear-gradient(180deg,#ef4444,#dc2626)}
+  .legend{display:flex;gap:22px;margin-top:11px;flex-wrap:wrap}
+  .lg{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-2)}
+  .lg b{font-weight:700}
+  .sw{width:10px;height:10px;border-radius:3px}
+  .wrap{max-width:1040px;margin:0 auto;padding:30px 32px 90px}
+  .lane{margin-bottom:38px}
+  .lane-head{display:flex;align-items:center;gap:11px;margin-bottom:16px;
+    padding-bottom:12px;border-bottom:1px solid var(--line)}
+  .lane-ico{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;
+    justify-content:center;font-size:14px;font-weight:700}
+  .lane-ti{font-size:16px;font-weight:700;letter-spacing:-.2px}
+  .lane-n{font-size:12px;color:var(--dim);font-weight:600;background:var(--line-2);
+    padding:2px 9px;border-radius:999px}
+  .room{margin-bottom:18px}
+  .room-h{font-size:12px;color:var(--dim);font-weight:600;margin-bottom:11px;
+    display:flex;align-items:center;gap:8px}
+  .room-h code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    background:var(--line-2);padding:2px 8px;border-radius:5px;font-size:11.5px;color:var(--ink-2)}
+  .room-h .desc{color:var(--faint);font-weight:500}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:13px;
+    padding:15px 15px 13px;cursor:pointer;position:relative;
+    box-shadow:0 1px 2px rgba(20,20,40,.04);
+    transition:transform .14s ease,box-shadow .14s ease,border-color .14s;
+    min-height:104px;display:flex;flex-direction:column;justify-content:space-between}
+  .card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(20,20,40,.09);border-color:#e0dfd9}
+  .pill{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;letter-spacing:.3px;
+    padding:3px 9px;border-radius:6px;width:fit-content;text-transform:uppercase}
+  .pill.dec{background:var(--dec-bg);color:var(--dec-fg);border:1px solid var(--dec-bd)}
+  .pill.arc{background:var(--arc-bg);color:var(--arc-fg);border:1px solid var(--arc-bd)}
+  .pill.fix{background:var(--fix-bg);color:var(--fix-fg);border:1px solid var(--fix-bd)}
+  .pill.mth{background:var(--mth-bg);color:var(--mth-fg);border:1px solid var(--mth-bd)}
+  .card-ti{font-size:14px;font-weight:600;line-height:1.4;margin-top:9px;color:var(--ink);
+    flex:1;letter-spacing:-.1px}
+  .card-ft{font-size:11px;color:var(--faint);margin-top:10px;font-family:ui-monospace,Menlo,monospace}
+  .merges{display:flex;flex-direction:column;gap:10px}
+  .mpair{display:flex;align-items:center;gap:10px;background:var(--surface);
+    border:1px solid var(--line);border-left:4px solid #f59e0b;border-radius:12px;
+    padding:13px 16px;box-shadow:0 1px 2px rgba(20,20,40,.04);flex-wrap:wrap}
+  .chip{font-size:12.5px;color:var(--ink-2);background:var(--line-2);
+    padding:5px 11px;border-radius:7px;font-weight:500}
+  .chip-t{color:#b45309;background:var(--mrg-bg);border:1px solid var(--mrg-bd);font-weight:600}
+  .plus{color:var(--faint);font-size:14px}
+  .arr{color:var(--faint);font-size:13px}
+  .dlist{display:flex;flex-direction:column;gap:7px}
+  .drow{display:flex;align-items:center;gap:11px;background:var(--surface);
+    border:1px solid var(--line);border-left:4px solid #ef4444;border-radius:11px;
+    padding:11px 16px;box-shadow:0 1px 2px rgba(20,20,40,.04)}
+  .drow .x{color:#dc2626;font-weight:700;font-size:15px}
+  .drow .ti{font-size:13.5px;color:var(--ink-2);flex:1}
+  .drow .ti em{color:var(--faint);font-style:normal}
+  .action{position:sticky;bottom:0;background:rgba(246,245,242,.9);backdrop-filter:blur(12px);
+    border-top:1px solid var(--line);margin-top:10px}
+  .action-in{max-width:1040px;margin:0 auto;padding:14px 32px;display:flex;
+    align-items:center;justify-content:center;gap:8px;font-size:13.5px;color:var(--dim)}
+  .action .ok{color:#0d9268;font-weight:700;background:var(--fix-bg);
+    border:1px solid var(--fix-bd);padding:2px 10px;border-radius:7px}
+  .action b{color:var(--ink)}
+  .ov{position:fixed;inset:0;background:rgba(30,30,45,.34);backdrop-filter:blur(5px);
+    display:none;align-items:center;justify-content:center;z-index:100;padding:24px}
+  .ov.show{display:flex}
+  .modal{background:var(--surface);border-radius:18px;max-width:500px;width:100%;
+    padding:28px;box-shadow:0 24px 60px rgba(20,20,40,.22);position:relative}
+  .modal .close{position:absolute;top:16px;right:18px;font-size:22px;color:var(--faint);
+    cursor:pointer;background:none;border:none;line-height:1}
+  .modal h2{font-size:20px;font-weight:700;margin:12px 0 13px;letter-spacing:-.3px;line-height:1.35}
+  .modal p{font-size:14.5px;color:var(--ink-2);line-height:1.7;margin-bottom:18px}
+  .modal .mm{font-size:11.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;
+    padding-top:15px;border-top:1px solid var(--line-2)}
+  .modal .rs{display:block;margin-top:7px;color:var(--dim);font-family:inherit}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="head-top">
+    <h1>{{报告标题，如"本周捕获整理"}}</h1>
+    <span class="week">{{周期标签，如"2026 · W26"}}</span>
+  </div>
+  <div class="sub">{{时段}} · 来源 {{sources}} · 共 {{total}} 张草稿</div>
+</div>
+
+<!-- 流向条：flex 值 = 各类数量，保证比例正确 -->
+<div class="flow">
+  <div class="flow-cap">
+    <span class="l">本周流向</span>
+    <span class="r">{{total}} 张草稿 → 怎么整理</span>
+  </div>
+  <div class="bar">
+    <!-- 按 {{promote-count}} : {{merge-count}} : {{discard-count}} 设 flex -->
+    <div class="seg s-promote" style="flex:{{promote-count}}">{{promote-count}} 入库</div>
+    <div class="seg s-merge" style="flex:{{merge-count}}">{{merge-count}}</div>
+    <div class="seg s-discard" style="flex:{{discard-count}}">{{discard-count}}</div>
+  </div>
+  <div class="legend">
+    <span class="lg"><span class="sw" style="background:#10b981"></span>入库 <b>{{promote-count}}</b></span>
+    <span class="lg"><span class="sw" style="background:#f59e0b"></span>合并 <b>{{merge-count}} 组</b></span>
+    <span class="lg"><span class="sw" style="background:#ef4444"></span>归档 <b>{{discard-count}}</b>（不删除）</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- 入库 lane：按房间分 room，每个 room 含若干 card -->
+  <div class="lane">
+    <div class="lane-head">
+      <div class="lane-ico" style="background:var(--fix-bg);color:var(--fix-fg)">✓</div>
+      <span class="lane-ti">建议入库</span>
+      <span class="lane-n">{{promote-count}} 张</span>
+    </div>
+
+    <!-- 一个 room 块（按去向房间循环，示例：40.notes/permanent） -->
+    <div class="room">
+      <div class="room-h"><code>{{房间路径，如 40.notes/permanent}}</code><span class="desc">· {{房间别名，如 卡片柜}} · {{本房间张数}} 张</span></div>
+      <div class="grid">
+        <!-- 一张 card（循环）。pill 类型：dec/arc/fix/mth -->
+        <div class="card" onclick="showDetail('{{type}}','{{标题}}','{{一句话摘要}}','{{来源}}','{{去向理由}}')">
+          <div><span class="pill {{type}}">{{类型中文：决策/架构/修复/方法}}</span><div class="card-ti">{{标题}}</div></div>
+          <div class="card-ft">{{来源简写，如 zcode · 6/24}}</div>
+        </div>
+        <!-- 更多 card... -->
+      </div>
+    </div>
+    <!-- 更多 room... -->
+  </div>
+
+  <!-- 合并 lane：每组一个 mpair -->
+  <div class="lane">
+    <div class="lane-head">
+      <div class="lane-ico" style="background:var(--mrg-bg);color:var(--mrg-fg)">⇄</div>
+      <span class="lane-ti">建议合并</span>
+      <span class="lane-n">{{merge-count}} 组 → {{合并后张数}} 张</span>
+    </div>
+    <div class="merges">
+      <!-- 一组（循环） -->
+      <div class="mpair">
+        <span class="chip">{{草稿A标题}}</span>
+        <span class="plus">+</span>
+        <span class="chip">{{草稿B标题}}</span>
+        <span class="arr">→</span>
+        <span class="chip chip-t">{{目标房间}} · {{合并后标题}}</span>
+      </div>
+      <!-- 更多组... -->
+    </div>
+  </div>
+
+  <!-- 归档 lane：每条一个 drow -->
+  <div class="lane">
+    <div class="lane-head">
+      <div class="lane-ico" style="background:var(--dis-bg);color:var(--dis-fg)">✕</div>
+      <span class="lane-ti">建议归档</span>
+      <span class="lane-n">{{discard-count}} · 移至 archive，不删除</span>
+    </div>
+    <div class="dlist">
+      <!-- 一条（循环） -->
+      <div class="drow"><span class="x">✕</span><span class="ti">{{草稿标题}} <em>— {{归档理由}}</em></span></div>
+      <!-- 更多... -->
+    </div>
+  </div>
+
+</div>
+
+<div class="action">
+  <div class="action-in">
+    看完没问题？回终端说 <span class="ok">OK</span> 开始落盘 ·
+    有异议直接说哪条（如 <b>「{{示例异议}}」</b>），我改完重出这份报告
+  </div>
+</div>
+
+<!-- 详情弹窗（不变） -->
+<div class="ov" id="ov" onclick="if(event.target===this)hide()">
+  <div class="modal">
+    <button class="close" onclick="hide()">×</button>
+    <span class="pill" id="mPill"></span>
+    <h2 id="mTi"></h2>
+    <p id="mBody"></p>
+    <div class="mm"><div id="mMeta"></div><span class="rs" id="mRs"></span></div>
+  </div>
+</div>
+
+<script>
+const M={
+  dec:['决策','pill dec'], arc:['架构','pill arc'], fix:['修复','pill fix'], mth:['方法','pill mth']
+};
+function showDetail(type,title,body,meta,reason){
+  const [t,cls]=M[type]||['','pill'];
+  const p=document.getElementById('mPill');
+  p.className=cls; p.textContent=t;
+  document.getElementById('mTi').textContent=title;
+  document.getElementById('mBody').textContent=body;
+  document.getElementById('mMeta').textContent='来源 '+meta;
+  document.getElementById('mRs').textContent='→ '+reason;
+  document.getElementById('ov').classList.add('show');
+}
+function hide(){document.getElementById('ov').classList.remove('show')}
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "vault": "/Users/<user>/Library/Mobile Documents/iCloud~md~obsidian/Documents/knowledge",
+  "tools": {
+    "zcode": { "logDir": "~/.zcode/cli/rollout" },
+    "claude-code": { "logDir": "~/.claude/projects" }
+  },
+  "inboxDir": "30.knowledge/10.capture/inbox",
+  "promotedDir": "30.knowledge/10.capture/promoted",
+  "nowMd": "00.context/now.md",
+  "stagingDir": "30.knowledge/.staging",
+  "discardedDir": "90.archive/discarded",
+  "timezone": "Asia/Shanghai"
+}
