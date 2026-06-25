@@ -35,7 +35,7 @@
 
 ## Phase 1 完成 2026-06-25
 
-GitHub: （Task 14 推送后填入）
+GitHub: https://github.com/beiyuii/knowledge-capture
 
 ### 已交付
 - 独立仓库 `knowledge-capture`，22 文件，纯 skill（零编译）
