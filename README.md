@@ -1,70 +1,203 @@
 # knowledge-capture
 
-> 把 AI agent 工具的会话日志沉淀进你的知识库。
+> **Turn your AI agent chats into permanent knowledge.** Auto-capture session logs from zcode / Claude Code / Codex into your Obsidian vault, then review and promote valuable drafts into permanent notes — through a visual kanban report.
 
-一个**纯 skill**（markdown 指令 + AI 执行，零编译）。它把 zcode / Claude Code / Codex 等 agent 工具的会话日志自动整理进你的 Obsidian 知识库，并把 inbox 草稿通过**可视化看板报告 + 对话式拍板**半自动整理成正式知识。
+中文说明：[README.zh-CN.md](./README.zh-CN.md)
 
-- **读端通用**：按 agent 工具适配（每工具一个 markdown 适配器，统一吐 Session IR）。
-- **写端通用**：按知识库适配（Obsidian Knowledge Palace / Logseq / Notion…），按知识库自己的规则整理。
-- **独立的发行单元**：可脱离 skillpack 单独用；也是 skillpack 技能矩阵的一个组件。
+[![version](https://img.shields.io/badge/version-0.1.0-blue)](./SKILL.md)
+[![license](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![category](https://img.shields.io/badge/category-capture%20%26%20review-purple)](#)
+[![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL-lightgrey)](#)
+[![agents](https://img.shields.io/badge/agents-zcode%20%7C%20Claude%20Code%20%7C%20Codex-orange)](#)
 
-## 快速开始
+---
+
+## Why
+
+You work with AI agents every day — designing features, fixing bugs, making decisions. Each session is full of hard-won insight. But two things always go wrong:
+
+**1. The work never makes it into your knowledge base on its own.**
+
+You finish a session, the window closes, and that's it. The decision you debated, the bug you finally cracked, the method you figured out — none of it becomes a note unless you sit down and write it yourself. And nobody does that consistently. So your knowledge base stays empty while real insight leaks out through chat history every single day.
+
+**2. There's no easy, recurring moment to decide what your knowledge base should actually hold.**
+
+Even when you have a capture buffer, looking at it is unpleasant — a pile of raw scraps you have to read one by one, figure out what each is, decide where it goes. So you put it off. The buffer grows. The knowledge never lands. Your "second brain" becomes a graveyard you're afraid to open.
+
+knowledge-capture fixes both:
+
+- **save happens automatically, in the background.** It reads your agent session logs, pulls out the parts genuinely worth remembering, and drops them into your knowledge base inbox as drafts. You don't lift a finger — the work starts writing itself into your knowledge base.
+- **organize gives you a periodic, low-effort moment to decide.** It turns the pile of drafts into a **visual kanban report** — what's worth keeping, where each piece should go, what to drop. You skim it (not the raw drafts), nod or nudge, and it commits. No more dread; just a clean weekly review where the heavy lifting is already done.
+
+The capture happens without you. The judgment stays with you.
+
+---
+
+## Quick Start
 
 ```bash
-# 1. 装到 master 库（Phase 2 起：skillpack skill install knowledge-capture）
-cp -r knowledge-capture ~/.agents/skills/knowledge-capture
+# 1. Clone into your agent's skill library
+git clone https://github.com/beiyuii/knowledge-capture ~/.agents/skills/knowledge-capture
+
+# 2. Configure your vault path
 cd ~/.agents/skills/knowledge-capture
 cp config/paths.example.json config/paths.json
-# 编辑 paths.json，填你的 vault 路径
+# edit paths.json — set your Obsidian vault path
 
-# 2. 在 agent 里用
-# 说「记录会话」→ 自动捕获日志进 inbox
-# 说「整理知识库」→ 生成看板报告，你看了说 OK 才落盘
+# 3. For Claude Code, also link into its skill dir
+ln -s ~/.agents/skills/knowledge-capture ~/.claude/skills/knowledge-capture
 ```
 
-## 两个模式
+Then in any agent session:
 
-| 触发 | 模式 | 自动化 | 你做什么 |
+```
+# say 「记录会话」(record session)  → auto-captures into inbox
+# say 「整理知识库」(organize)      → kanban report, approve to commit
+```
+
+---
+
+## What You Get
+
+| Path | Role |
+|---|---|
+| `SKILL.md` | Entry point — defines the save and organize flows |
+| `adapters/` | READ side — per-tool parsers that turn raw logs into a unified Session IR |
+| `adapters/zcode.md` | zcode rollout parser (Phase 1) |
+| `adapters/claude-code.md` | Claude Code session parser (Phase 1) |
+| `vaults/` | WRITE side — per-knowledge-base organize rules |
+| `vaults/obsidian-knowledge-palace.md` | Obsidian KP folder-boundaries decision tree (Phase 1) |
+| `rules/capture-rules.md` | What to capture / not capture / merge granularity |
+| `rules/organize-rules.md` | Merge & discard judgment + 3 ironclad guardrails + write-allowlist |
+| `templates/draft.md` | inbox draft frontmatter template |
+| `templates/review-report.html` | kanban report template (light, polished, card-wall driven) |
+| `templates/now-pointer.md` | now.md milestone pointer template |
+| `state/watermark.json` | incremental dedup watermark (not in git) |
+| `config/paths.json` | your vault & log paths (not in git) |
+
+---
+
+## Architecture
+
+knowledge-capture uses a **dual-adapter** model — symmetric read and write sides, joined by a unified Session IR:
+
+```
+session logs (zcode / Claude Code / Codex / …)
+        │
+        ▼  read adapters (one .md per tool)
+   ┌─────────────────────┐
+   │     Session IR       │  ← the single shared contract
+   │  {events:[{role,     │     (downstream only knows IR,
+   │   kind, content}]}   │      never raw formats)
+   └─────────────────────┘
+        │
+        ▼  capture-rules (digest → drafts)
+   inbox drafts  ──────►  now.md milestone pointer  (read-back loop ✓)
+        │
+        ▼  organize (on demand)
+   kanban HTML report  ──►  you say "OK" or nudge  ──►  write adapters promote to permanent notes
+```
+
+### Two modes, strictly separated
+
+| Trigger | Mode | Automation | What you do |
 |---|---|---|---|
-| 「记录会话」/ `/kc save` | save | 全自动 | 无 |
-| 「整理知识库」/ `/kc organize` | organize | 半自动 | 看报告，说 OK 或提异议 |
+| 「记录会话」/ `/kc save` | **save** | fully automatic | nothing |
+| 「整理知识库」/ `/kc organize` | **organize** | semi-automatic | skim the report, say OK or push back |
 
-详见 `SKILL.md`。
+**Why separate them**: if capture and review were one step, you'd be ambushed by a review every time a session ends. Splitting them keeps capture silent and zero-burden; review becomes periodic, batched, and on your terms.
 
-## 目录结构
+### Session IR — the key to multi-tool support
+
+Every agent tool's logs use a different storage format (JSONL, SQLite, Markdown, ZIP exports) and different field names. There is **no universal parser**. But the *semantics* of "what's worth capturing" are shared — what the user said, what the AI thought, what tools it used.
+
+All read adapters parse their logs into one **Session IR**. Downstream rules (capture / organize) are written once and work for every tool. Adding a tool = adding one `.md` adapter. No compilation.
+
+Tools cluster into three families that share parsing skeletons:
+
+| Family | Tools | Shared by |
+|---|---|---|
+| Typed-event JSONL | zcode, Claude Code, Codex | `JsonlEventFamily` skeleton |
+| Single-file JSON session | Cline/Roo, Zed, Cody | (Phase 2) |
+| Tree/list JSON export | ChatGPT export, Claude.ai export | (Phase 3) |
+
+---
+
+## Kanban Report
+
+When you run organize, the skill generates a **static, polished HTML report** and opens it in your browser:
+
+- **Flow bar** at top — one colored strip showing how drafts split (promote / merge / archive) at a glance.
+- **Card wall grouped by destination room** — each card shows only a type pill + title + source. **No prose.** Click for a one-line summary and the reason for its suggested destination.
+- **Merge lane** — `draft A + draft B → target` chip flow.
+- **Archive lane** — single-line items with reasons, so you can catch false-discards.
+
+You review visually, then in the terminal say "OK" to commit or describe what to change. The skill regenerates the full report until you're satisfied. **Nothing is written until you approve.**
+
+---
+
+## Safety
+
+| Concern | Guarantee |
+|---|---|
+| Re-processing the same logs | Watermark incremental dedup — never re-captures |
+| Wrong destination / AI misjudgment | Report review is the backstop; all suggestions, nothing committed until OK |
+| Accidental deletion | Archive ≠ delete; discarded drafts move to `90.archive/discarded/`, reversible |
+| Corrupting your formal notes | Atomic staging commits — all target files land in `.staging/` first, move to formal rooms only if all succeed |
+| Broken wikilinks | Pre-commit scan; if a target is referenced, keeps a redirect, never silently breaks |
+| Touching your identity layer | Write-allowlist hard guard — skill can only write inside `30.knowledge/`, never `ME.md` / identity / skills |
+
+---
+
+## Agent Compatibility
+
+The skill is plain markdown, so any AI agent that can read files and follow instructions can use it.
+
+- **zcode** — reads from `~/.zcode/cli/rollout/*.jsonl` (Phase 1 ✅)
+- **Claude Code** — reads from `~/.claude/projects/<dir>/*.jsonl` (Phase 1 ✅)
+- **Codex CLI** — reads from `~/.codex/sessions/` (Phase 2, same JSONL family)
+- **Cline / Roo Code, Zed, Cody** — single-file JSON sessions (Phase 2)
+
+**Triggering**: CLI agents (zcode, Claude Code, Codex, Aider) can be scheduled via cron. GUI agents (Cursor, Windsurf) have no clean CLI entry — use manual trigger. The skill itself is a passive executor; it doesn't care how it's invoked.
+
+> **Not supported** (no stable local logs): Cursor (SQLite+zlib, undocumented schema), Windsurf & Gemini (cloud-only), ChatGPT desktop (encrypted).
+
+---
+
+## Ecosystem
+
+knowledge-capture is an independent repo that also fits into the [**skillpack**](https://github.com/beiyuii/skillpack) matrix. Three independent pieces, composable into a full personal-AI workflow:
+
+| Repo | Role | Direction |
+|---|---|---|
+| **knowledge-capture** (this) | session logs → knowledge base | capture & promote |
+| [personal-api-skill](https://github.com/beiyuii/personal-api-skill) | Obsidian vault → AI identity layer | identity & navigation |
+| [skillpack](https://github.com/beiyuii/skillpack) | local skill farm + matrix orchestrator | install & manage |
+
+**How they connect**: `personal-api-skill` scaffolds your vault (ME.md, Knowledge Palace v2 structure) and makes any AI agent understand who you are. `knowledge-capture` then feeds that vault with captured insights — it promotes drafts into the very `30.knowledge/` rooms that `personal-api-skill` set up, following the same Knowledge Palace v2 rules. `skillpack` installs and orchestrates both.
 
 ```
-SKILL.md              主入口
-adapters/             读端：agent 工具适配器（zcode/claude-code…）
-vaults/               写端：知识库适配器（obsidian-knowledge-palace…）
-rules/                消化规则（捕获/整理）
-templates/            产物模板（草稿/指针/看板报告）
-config/               路径配置（用户填）
+personal-api-skill ──scaffolds──► vault (ME.md + 30.knowledge/)
+                                        ▲
+knowledge-capture ────promotes into──────┘   (follows KP v2 rules)
+        ▲
+skillpack ──install──► both skills
 ```
 
-## 与 skillpack 的关系
+---
 
-knowledge-capture 是独立仓库，可单独用。它也是 [skillpack](https://github.com/beiyuii/skillpack) 技能矩阵的一个组件——skillpack 通过通用 `skill install` 命令把它（和 [personal-api-skill](https://github.com/beiyuii/personal-api-skill) 等）装入 master 库，形成矩阵。
+## Phase Roadmap
 
-- **skillpack**：本地技能软链农场管理器，技能发行/编排中心。
-- **personal-api-skill**：把 Obsidian vault 变成 AI 身份层。
-- **knowledge-capture**（本仓库）：把会话日志沉淀进知识库。
+- ✅ **Phase 1 (current, verified end-to-end on real vault)** — zcode + Claude Code adapters, save & organize both modes, kanban report, Obsidian-KP vault adapter.
+- ⏳ **Phase 2** — Codex / Cline-Roo adapters · `skillpack skill install` command · cron scheduling via hermes.
+- 🔜 **Phase 3** — ChatGPT/Claude.ai export adapters · weekly reminder reports · Logseq/Notion vault adapters.
 
-三者独立可用，组合成完整工作流。
+---
 
-## Phase 路线图
+## Design Docs
 
-- **Phase 1（当前）**：zcode + Claude Code 适配器 + save/organize 两模式 + 看板报告 + Obsidian-KP 写端。
-- **Phase 2**：Codex / Cline 适配器 + skillpack `skill install` + cron 定时接入。
-- **Phase 3**：ChatGPT/Claude.ai 导出适配器 + 每周催办报告 + 其他 vault 适配器。
+- [Spec](https://github.com/beiyuii/skillpack/blob/main/docs/superpowers/specs/2026-06-24-knowledge-capture-design.md) — full design (5-section brainstorming)
+- [Phase 1 Plan](https://github.com/beiyuii/skillpack/blob/main/docs/superpowers/plans/2026-06-24-knowledge-capture-phase1.md) — implementation plan (Plan-reviewed)
+- [Validation](./docs/phase1-validation.md) — end-to-end real-vault verification record
 
-**不承诺支持**（已知无法稳定访问本地日志）：Cursor（SQLite+zlib 未文档化）、Windsurf（云端）、Gemini（云端）、ChatGPT 桌面版（加密）。
-
-## 设计文档
-
-- [Spec](../skillpack/docs/superpowers/specs/2026-06-24-knowledge-capture-design.md)
-- [Phase 1 Plan](../skillpack/docs/superpowers/plans/2026-06-24-knowledge-capture-phase1.md)
-
-## License
-
-MIT
+License: MIT.
