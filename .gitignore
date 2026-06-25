@@ -1,0 +1,4 @@
+state/
+config/paths.json
+*.html.bak
+.DS_Store
